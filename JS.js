@@ -4,50 +4,39 @@
  *   Desc: Menu button that opens a menu of actions with improved accessibility.
  */
 
-'use strict';
+
+  'use strict';
 
 class MenuButtonActions {
-  constructor(domNode, performMenuAction) {
+  constructor(domNode) {
     this.domNode = domNode;
-    this.performMenuAction = performMenuAction;
     this.buttonNode = domNode.querySelector('button');
     this.menuNode = domNode.querySelector('[role="menu"]');
-    this.menuitemNodes = [];
-    this.firstMenuitem = false;
-      this.lastMenuitem = false;
-    this.firstChars = [];
+    this.menuitemNodes = Array.from(domNode.querySelectorAll('[role="menuitem"]'));
     this.currentIndex = 0;
 
     this.buttonNode.addEventListener('keydown', this.onButtonKeydown.bind(this));
     this.buttonNode.addEventListener('click', this.onButtonClick.bind(this));
 
-    let nodes = domNode.querySelectorAll('[role="menuitem"]');
-
-    nodes.forEach((menuitem, index) => {
-      this.menuitemNodes.push(menuitem);
+    this.menuitemNodes.forEach((menuitem, index) => {
       menuitem.setAttribute('tabindex', index === 0 ? '0' : '-1');
-      this.firstChars.push(menuitem.textContent.trim()[0].toLowerCase());
-
       menuitem.addEventListener('keydown', this.onMenuitemKeydown.bind(this));
       menuitem.addEventListener('click', this.onMenuitemClick.bind(this));
-      menuitem.addEventListener('mouseover', this.onMenuitemMouseover.bind(this));
-
-      if (!this.firstMenuitem) {
-        this.firstMenuitem = menuitem;
-      }
-      this.lastMenuitem = menuitem;
     });
 
-    domNode.addEventListener('focusin', this.onFocusin.bind(this));
-    domNode.addEventListener('focusout', this.onFocusout.bind(this));
     window.addEventListener('mousedown', this.onBackgroundMousedown.bind(this), true);
   }
 
-  setFocusToMenuitem(newMenuitem) {
+  setFocusToMenuitem(newIndex) {
+    if (newIndex < 0 || newIndex >= this.menuitemNodes.length) return;
+
+    // Remove old focus and set tabindex="-1"
     this.menuitemNodes[this.currentIndex].setAttribute('tabindex', '-1');
-    this.currentIndex = this.menuitemNodes.indexOf(newMenuitem);
-    this.menuitemNodes[this.currentIndex].setAttribute('tabindex', '0');
-    this.menuitemNodes[this.currentIndex].focus();
+    
+    // Set new focus and update tabindex
+    this.menuitemNodes[newIndex].setAttribute('tabindex', '0');
+    this.menuitemNodes[newIndex].focus();
+    this.currentIndex = newIndex;
   }
 
   onButtonKeydown(event) {
@@ -56,12 +45,12 @@ class MenuButtonActions {
       case ' ':
       case 'ArrowDown':
         this.openPopup();
-        this.setFocusToFirstMenuitem();
+        this.setFocusToMenuitem(0);
         event.preventDefault();
         break;
       case 'ArrowUp':
         this.openPopup();
-        this.setFocusToLastMenuitem();
+        this.setFocusToMenuitem(this.menuitemNodes.length - 1);
         event.preventDefault();
         break;
       case 'Escape':
@@ -72,19 +61,24 @@ class MenuButtonActions {
   }
 
   onMenuitemKeydown(event) {
+    let newIndex = this.currentIndex;
+
     switch (event.key) {
+      case 'Enter':
+      case ' ':
+        this.updatePizzaChoice(this.menuitemNodes[this.currentIndex]);
+        this.closePopup();
+        this.buttonNode.focus();
+        event.preventDefault();
+        break;
       case 'ArrowDown':
-        this.setFocusToNextMenuitem(event.currentTarget);
+        newIndex = (this.currentIndex + 1) % this.menuitemNodes.length;
+        this.setFocusToMenuitem(newIndex);
         event.preventDefault();
         break;
       case 'ArrowUp':
-        this.setFocusToPreviousMenuitem(event.currentTarget);
-        event.preventDefault();
-        break;
-      case 'Enter':
-      case ' ':
-        this.performMenuAction(event.currentTarget);
-        this.closePopup();
+        newIndex = (this.currentIndex - 1 + this.menuitemNodes.length) % this.menuitemNodes.length;
+        this.setFocusToMenuitem(newIndex);
         event.preventDefault();
         break;
       case 'Escape':
@@ -94,37 +88,20 @@ class MenuButtonActions {
     }
   }
 
-  setFocusToFirstMenuitem() {
-    this.setFocusToMenuitem(this.firstMenuitem);
-  }
-
-  setFocusToLastMenuitem() {
-    this.setFocusToMenuitem(this.lastMenuitem);
-  }
-
-  setFocusToNextMenuitem(currentMenuitem) {
-    let index = this.menuitemNodes.indexOf(currentMenuitem);
-    let newIndex = (index + 1) % this.menuitemNodes.length;
-    this.setFocusToMenuitem(this.menuitemNodes[newIndex]);
-  }
-
-  setFocusToPreviousMenuitem(currentMenuitem) {
-    let index = this.menuitemNodes.indexOf(currentMenuitem);
-    let newIndex = (index - 1 + this.menuitemNodes.length) % this.menuitemNodes.length;
-    this.setFocusToMenuitem(this.menuitemNodes[newIndex]);
-  }
-
   openPopup() {
     this.menuNode.style.display = 'block';
+    this.menuNode.classList.add('menu-open'); // Add highlight class
     this.buttonNode.setAttribute('aria-expanded', 'true');
-  }
+    this.setFocusToMenuitem(0);
+}
 
-  closePopup() {
+closePopup() {
     if (this.isOpen()) {
-      this.buttonNode.removeAttribute('aria-expanded');
-      this.menuNode.style.display = 'none';
+        this.menuNode.classList.remove('menu-open'); // Remove highlight class
+        this.buttonNode.removeAttribute('aria-expanded');
+        this.menuNode.style.display = 'none';
     }
-  }
+}
 
   isOpen() {
     return this.buttonNode.getAttribute('aria-expanded') === 'true';
@@ -136,15 +113,18 @@ class MenuButtonActions {
       this.buttonNode.focus();
     } else {
       this.openPopup();
-      this.setFocusToFirstMenuitem();
     }
     event.preventDefault();
   }
 
   onMenuitemClick(event) {
-    this.performMenuAction(event.currentTarget);
+    this.updatePizzaChoice(event.currentTarget);
     this.closePopup();
     this.buttonNode.focus();
+  }
+
+  updatePizzaChoice(selectedItem) {
+    document.getElementById('action_output').value = selectedItem.textContent.trim();
   }
 
   onBackgroundMousedown(event) {
@@ -158,12 +138,8 @@ class MenuButtonActions {
 window.addEventListener('load', function () {
   document.getElementById('action_output').value = 'none';
 
-  function performMenuAction(node) {
-    document.getElementById('action_output').value = node.textContent.trim();
-  }
-
   let menuButtons = document.querySelectorAll('.menu-button-actions');
   menuButtons.forEach(menuButton => {
-    new MenuButtonActions(menuButton, performMenuAction);
-  });
+    new MenuButtonActions(menuButton);
+  });
 });
