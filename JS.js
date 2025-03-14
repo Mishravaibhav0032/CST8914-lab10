@@ -3,8 +3,6 @@
  *   https://www.w3.org/Consortium/Legal/2015/copyright-software-and-document
  *   Desc: Menu button that opens a menu of actions with improved accessibility.
  */
-
-
   'use strict';
 
 class MenuButtonActions {
